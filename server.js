@@ -1,39 +1,51 @@
 const express = require('express');
-const { createServer } = require('node:http');
-const { uvPath } = require('@titaniumnetwork-dev/ultraviolet');
-const BareServer = require('@tomphttp/bare-server-node');
-const path = require('node:path');
+const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
+const path = require('path');
 
 const app = express();
-const server = createServer();
-const bare = BareServer.createBareServer('/bare/');
-
+// Railway will provide the PORT; 3000 is for local testing.
 const PORT = process.env.PORT || 3000;
 
-// 1. Serve the frontend UI
+// Serve your frontend files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. Serve Ultraviolet engine files
-app.use('/uv/', express.static(uvPath));
+app.get('/proxy', async (req, res) => {
+    let targetUrl = req.query.url;
 
-// 3. Setup the server to handle both Express and the Bare Proxy
-server.on('request', (req, res) => {
-    if (bare.shouldRoute(req)) {
-        bare.routeRequest(req, res);
-    } else {
-        app(req, res);
+    if (!targetUrl) return res.status(400).send('No URL provided.');
+    if (!/^https?:\/\//i.test(targetUrl)) targetUrl = 'https://' + targetUrl;
+
+    try {
+        const response = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        const contentType = response.headers.get('content-type') || 'text/html';
+        res.setHeader('Content-Type', contentType);
+
+        // If it's a website (HTML), we need to fix the links
+        if (contentType.includes('text/html')) {
+            let body = await response.text();
+            const origin = new URL(targetUrl).origin;
+            
+            // Inject a <base> tag so images and CSS load from the target site
+            const modifiedBody = body.replace(
+                '<head>',
+                `<head><base href="${origin}/">`
+            );
+            res.send(modifiedBody);
+        } else {
+            // For images/scripts, just pipe the raw data
+            response.body.pipe(res);
+        }
+    } catch (error) {
+        res.status(500).send('Error fetching site: ' + error.message);
     }
 });
 
-server.on('upgrade', (req, socket, head) => {
-    if (bare.shouldRoute(req)) {
-        bare.routeUpgrade(req, socket, head);
-    } else {
-        socket.end();
-    }
-});
-
-// CRITICAL: Bind to 0.0.0.0 so Railway can see the app
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`PRXY is running on http://0.0.0.0:${PORT}`);
+// IMPORTANT: Bind to 0.0.0.0 for Railway
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`PRXY is live on port ${PORT}`);
 });
