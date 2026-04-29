@@ -5,15 +5,17 @@ const { uvPath } = require('@titaniumnetwork-dev/ultraviolet');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. Serve your UI
+// 1. Serve your "PRXY" frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 2. Serve the Ultraviolet Engine files automatically
+// 2. Serve the Ultraviolet engine files (Internal magic)
 app.use('/uv/', express.static(uvPath));
 
-// 3. 404 handler to keep things clean
+// 3. Always serve index.html for any unknown routes
 app.use((req, res) => {
-    res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`PRXY live on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
