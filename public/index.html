@@ -2,12 +2,21 @@
 <script src="/uv/uv.config.js"></script>
 
 <script>
-  // Register the Service Worker (The Bypass Engine)
-  if ('serviceWorker' in navigator) {
-    window.navigator.serviceWorker.register('/uv/uv.sw.js', {
-      scope: __uv$config.prefix
-    });
+  // Register the engine immediately
+  const swConfig = {
+    scope: __uv$config.prefix,
+    bare: '/bare/'
+  };
+
+  async function registerSW() {
+    if ('serviceWorker' in navigator) {
+      await navigator.serviceWorker.register('/uv/uv.sw.js', {
+        scope: __uv$config.prefix
+      });
+    }
   }
+
+  registerSW();
 
   const input = document.getElementById('url-input');
   const btn = document.getElementById('go-btn');
@@ -16,31 +25,29 @@
   async function navigate(url) {
     if (!url.trim()) return;
 
-    // Handle Search vs URL
+    // Search or URL logic
     if (!url.includes('.') || url.includes(' ')) {
       url = 'https://www.google.com/search?q=' + encodeURIComponent(url);
     } else if (!/^https?:\/\//i.test(url)) {
       url = 'https://' + url;
     }
 
-    // Encode the URL using UV logic
-    const encodedUrl = __uv$config.prefix + __uv$config.encodeUrl(url);
-
-    // Update UI
     btn.textContent = '...';
-    document.getElementById('frame-bar-url').textContent = url;
     
-    // Load into iframe
+    // Ensure SW is ready before loading
+    await registerSW();
+
+    const encodedUrl = __uv$config.prefix + __uv$config.encodeUrl(url);
     proxyFrame.src = encodedUrl;
 
     proxyFrame.onload = () => {
       btn.textContent = 'GO';
+      document.getElementById('frame-bar-url').textContent = url;
       document.getElementById('frame-container').classList.add('shown');
       document.getElementById('frame-container').style.display = 'flex';
     };
   }
 
-  // Keep your existing Event Listeners for click and Enter key
   btn.addEventListener('click', () => navigate(input.value));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(input.value); });
 </script>
