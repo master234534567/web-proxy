@@ -9,10 +9,13 @@ const PORT = process.env.PORT || 3000;
 
 console.log("[Nebula] Starting... Node " + process.version);
 
-// Required headers for SharedArrayBuffer + service workers
+// COOP/COEP headers — only required on UV service worker + config files
+// Applying these globally breaks cross-origin iframes inside the proxy
 app.use((req, res, next) => {
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  if (req.path === "/uv/uv.sw.js" || req.path === "/uv/uv.config.js") {
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  }
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
 });
@@ -52,7 +55,12 @@ tryServe("@titaniumnetwork-dev/ultraviolet", "/uv");
 tryServe("@mercuryworkshop/epoxy-transport", "/epoxy");
 tryServe("@mercuryworkshop/bare-mux", "/baremux");
 
-// Dynamic UV config
+// Public folder — must come BEFORE the UV config override and SPA fallback
+// so that /js/main.js and /js/register-sw.js are served as static files
+// and never caught by the app.get("*") catch-all
+app.use(express.static(path.join(__dirname, "public")));
+
+// Dynamic UV config (overrides the static file served from the UV package)
 app.get("/uv/uv.config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   res.send(`self.__uv$config = {
@@ -66,13 +74,10 @@ app.get("/uv/uv.config.js", (req, res) => {
 };`);
 });
 
-// Public folder (your frontend)
-app.use(express.static(path.join(__dirname, "public")));
-
 // Health check
 app.get("/health", (req, res) => res.json({ ok: true, node: process.version }));
 
-// SPA fallback
+// SPA fallback — only reached if no static file or explicit route matched
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
