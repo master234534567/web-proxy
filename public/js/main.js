@@ -1,198 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nebula</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/style.css" />
-</head>
-<body>
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const fs = require("fs");
 
-  <div class="bg-grid"></div>
-  <div class="bg-glow glow-1"></div>
-  <div class="bg-glow glow-2"></div>
-  <canvas id="stars"></canvas>
+const app = express();
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
 
-  <!-- NAV -->
-  <nav class="navbar">
-    <div class="nav-logo">
-      <span class="logo-icon">✦</span>
-      <span class="logo-text">NEBULA</span>
-    </div>
-    <div class="nav-links">
-      <a href="#" class="nav-link active" data-tab="home">Home</a>
-      <a href="#" class="nav-link" data-tab="games">Games</a>
-      <a href="#" class="nav-link" data-tab="apps">Apps</a>
-      <a href="#" class="nav-link" data-tab="settings">Settings</a>
-    </div>
-    <div class="nav-badge">UV3</div>
-  </nav>
+console.log("[Nebula] Starting... Node " + process.version);
 
-  <!-- HOME -->
-  <main class="tab-content active" id="tab-home">
-    <section class="hero">
-      <div class="hero-eyebrow">ULTRAVIOLET POWERED</div>
-      <h1 class="hero-title">Browse <span class="gradient-text">Beyond</span><br/>Limits</h1>
-      <p class="hero-sub">Fast. Private. Unblocked. Everything loads.</p>
-      <div class="search-wrapper">
-        <div class="search-bar" id="search-bar">
-          <span class="search-icon">⌕</span>
-          <input type="text" id="proxy-input" class="search-input"
-            placeholder="Enter URL or search..." autocomplete="off" spellcheck="false" />
-          <button class="search-btn" id="go-btn">LAUNCH</button>
-        </div>
-        <div class="search-hints">
-          <span class="hint" data-q="youtube.com">▶ YouTube</span>
-          <span class="hint" data-q="discord.com">◈ Discord</span>
-          <span class="hint" data-q="reddit.com">◉ Reddit</span>
-          <span class="hint" data-q="twitch.tv">♟ Twitch</span>
-          <span class="hint" data-q="spotify.com">♫ Spotify</span>
-        </div>
-      </div>
-    </section>
+// Required headers for SharedArrayBuffer + service workers
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+});
 
-    <section class="quick-links">
-      <div class="section-label">QUICK ACCESS</div>
-      <div class="links-grid">
-        <button class="quick-btn" data-url="https://youtube.com"><span class="qb-icon">▶</span>YouTube</button>
-        <button class="quick-btn" data-url="https://discord.com"><span class="qb-icon">◈</span>Discord</button>
-        <button class="quick-btn" data-url="https://reddit.com"><span class="qb-icon">◉</span>Reddit</button>
-        <button class="quick-btn" data-url="https://twitter.com"><span class="qb-icon">✕</span>Twitter/X</button>
-        <button class="quick-btn" data-url="https://spotify.com"><span class="qb-icon">♫</span>Spotify</button>
-        <button class="quick-btn" data-url="https://twitch.tv"><span class="qb-icon">♟</span>Twitch</button>
-        <button class="quick-btn" data-url="https://instagram.com"><span class="qb-icon">◎</span>Instagram</button>
-        <button class="quick-btn" data-url="https://google.com"><span class="qb-icon">✦</span>Google</button>
-        <button class="quick-btn" data-url="https://netflix.com"><span class="qb-icon">▣</span>Netflix</button>
-        <button class="quick-btn" data-url="https://tiktok.com"><span class="qb-icon">◈</span>TikTok</button>
-        <button class="quick-btn" data-url="https://github.com"><span class="qb-icon">◻</span>GitHub</button>
-        <button class="quick-btn" data-url="https://chatgpt.com"><span class="qb-icon">✧</span>ChatGPT</button>
-      </div>
-    </section>
-  </main>
+// Wisp WebSocket server
+try {
+  const { createServer } = require("wisp-server-node");
+  const wisp = createServer({ logLevel: "NONE" });
+  server.on("upgrade", (req, socket, head) => {
+    if (req.url.startsWith("/wisp/")) wisp.handleUpgrade(req, socket, head);
+    else socket.destroy();
+  });
+  console.log("[Nebula] Wisp OK");
+} catch (e) {
+  console.warn("[Nebula] Wisp skipped:", e.message);
+}
 
-  <!-- GAMES -->
-  <main class="tab-content" id="tab-games">
-    <section class="page-header">
-      <div class="hero-eyebrow">ARCADE</div>
-      <h2 class="page-title">Games</h2>
-      <p class="page-sub">Unblocked games — all run through Ultraviolet.</p>
-    </section>
-    <div class="games-grid">
-      <div class="game-card" data-url="https://1v1.lol"><div class="game-thumb" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">🎯</div><div class="game-info"><div class="game-name">1v1.LOL</div><div class="game-tag">Shooter</div></div></div>
-      <div class="game-card" data-url="https://krunker.io"><div class="game-thumb" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb)">🔫</div><div class="game-info"><div class="game-name">Krunker.io</div><div class="game-tag">FPS</div></div></div>
-      <div class="game-card" data-url="https://slither.io"><div class="game-thumb" style="background:linear-gradient(135deg,#43e97b,#38f9d7)">🐍</div><div class="game-info"><div class="game-name">Slither.io</div><div class="game-tag">IO</div></div></div>
-      <div class="game-card" data-url="https://agar.io"><div class="game-thumb" style="background:linear-gradient(135deg,#fa709a,#fee140)">⚪</div><div class="game-info"><div class="game-name">Agar.io</div><div class="game-tag">IO</div></div></div>
-      <div class="game-card" data-url="https://diep.io"><div class="game-thumb" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)">🎮</div><div class="game-info"><div class="game-name">Diep.io</div><div class="game-tag">IO</div></div></div>
-      <div class="game-card" data-url="https://moomoo.io"><div class="game-thumb" style="background:linear-gradient(135deg,#a1c4fd,#c2e9fb)">🌿</div><div class="game-info"><div class="game-name">MooMoo.io</div><div class="game-tag">Survival</div></div></div>
-      <div class="game-card" data-url="https://paper.io"><div class="game-thumb" style="background:linear-gradient(135deg,#fd7043,#ffcc02)">📄</div><div class="game-info"><div class="game-name">Paper.io</div><div class="game-tag">IO</div></div></div>
-      <div class="game-card" data-url="https://www.coolmathgames.com"><div class="game-thumb" style="background:linear-gradient(135deg,#f093fb,#f5576c)">🧮</div><div class="game-info"><div class="game-name">Cool Math</div><div class="game-tag">Puzzle</div></div></div>
-      <div class="game-card" data-url="https://zombs.io"><div class="game-thumb" style="background:linear-gradient(135deg,#2d3561,#c05c7e)">🧟</div><div class="game-info"><div class="game-name">Zombs.io</div><div class="game-tag">Survival</div></div></div>
-      <div class="game-card" data-url="https://lordz.io"><div class="game-thumb" style="background:linear-gradient(135deg,#373b44,#4286f4)">⚔️</div><div class="game-info"><div class="game-name">Lordz.io</div><div class="game-tag">Strategy</div></div></div>
-      <div class="game-card" data-url="https://wordle.com"><div class="game-thumb" style="background:linear-gradient(135deg,#134e5e,#71b280)">📝</div><div class="game-info"><div class="game-name">Wordle</div><div class="game-tag">Puzzle</div></div></div>
-      <div class="game-card" data-url="https://www.chess.com"><div class="game-thumb" style="background:linear-gradient(135deg,#c94b4b,#4b134f)">♟</div><div class="game-info"><div class="game-name">Chess.com</div><div class="game-tag">Board</div></div></div>
-    </div>
-  </main>
+// Serve UV files from node_modules
+function tryServe(pkgName, route) {
+  try {
+    const base = path.dirname(require.resolve(pkgName + "/package.json"));
+    const tryDirs = ["dist", "dist/browser", ""];
+    for (const sub of tryDirs) {
+      const dir = sub ? path.join(base, sub) : base;
+      if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
+        app.use(route, express.static(dir));
+        console.log("[Nebula] Serving " + pkgName + " from " + dir);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("[Nebula] Cannot serve " + pkgName + ":", e.message);
+  }
+}
 
-  <!-- APPS -->
-  <main class="tab-content" id="tab-apps">
-    <section class="page-header">
-      <div class="hero-eyebrow">TOOLS</div>
-      <h2 class="page-title">Apps</h2>
-      <p class="page-sub">All your essential web apps, unblocked.</p>
-    </section>
-    <div class="apps-grid">
-      <div class="app-card" data-url="https://docs.google.com"><div class="app-icon" style="color:#4285f4">◻</div><div class="app-name">Google Docs</div></div>
-      <div class="app-card" data-url="https://drive.google.com"><div class="app-icon" style="color:#34a853">▲</div><div class="app-name">Google Drive</div></div>
-      <div class="app-card" data-url="https://mail.google.com"><div class="app-icon" style="color:#ea4335">✉</div><div class="app-name">Gmail</div></div>
-      <div class="app-card" data-url="https://classroom.google.com"><div class="app-icon" style="color:#fbbc04">◈</div><div class="app-name">Classroom</div></div>
-      <div class="app-card" data-url="https://slides.google.com"><div class="app-icon" style="color:#f4b400">◼</div><div class="app-name">Google Slides</div></div>
-      <div class="app-card" data-url="https://sheets.google.com"><div class="app-icon" style="color:#0f9d58">▦</div><div class="app-name">Google Sheets</div></div>
-      <div class="app-card" data-url="https://notion.so"><div class="app-icon" style="color:#fff">◻</div><div class="app-name">Notion</div></div>
-      <div class="app-card" data-url="https://kahoot.it"><div class="app-icon" style="color:#ff3355">K</div><div class="app-name">Kahoot</div></div>
-      <div class="app-card" data-url="https://quizlet.com"><div class="app-icon" style="color:#4257b2">Q</div><div class="app-name">Quizlet</div></div>
-      <div class="app-card" data-url="https://canva.com"><div class="app-icon" style="color:#7d2ae8">C</div><div class="app-name">Canva</div></div>
-      <div class="app-card" data-url="https://www.duolingo.com"><div class="app-icon" style="color:#58cc02">🦉</div><div class="app-name">Duolingo</div></div>
-      <div class="app-card" data-url="https://open.spotify.com"><div class="app-icon" style="color:#1db954">♫</div><div class="app-name">Spotify</div></div>
-    </div>
-  </main>
+tryServe("@titaniumnetwork-dev/ultraviolet", "/uv");
+tryServe("@mercuryworkshop/epoxy-transport", "/epoxy");
+tryServe("@mercuryworkshop/bare-mux", "/baremux");
 
-  <!-- SETTINGS -->
-  <main class="tab-content" id="tab-settings">
-    <section class="page-header">
-      <div class="hero-eyebrow">CONFIG</div>
-      <h2 class="page-title">Settings</h2>
-      <p class="page-sub">Customize your Nebula experience.</p>
-    </section>
-    <div class="settings-panel">
-      <div class="setting-group">
-        <div class="setting-label">TAB CLOAK</div>
-        <p class="setting-desc">Change the browser tab title and icon to disguise this page.</p>
-        <div class="setting-row">
-          <select class="setting-input" id="cloak-preset">
-            <option value="">— Pick a preset —</option>
-            <option value="Google Classroom|https://ssl.gstatic.com/classroom/favicon.png">Google Classroom</option>
-            <option value="Google Docs|https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico">Google Docs</option>
-            <option value="Khan Academy|https://cdn.kastatic.org/images/favicon.ico">Khan Academy</option>
-            <option value="Quizlet|https://quizlet.com/favicon.ico">Quizlet</option>
-            <option value="Wikipedia|https://en.wikipedia.org/favicon.ico">Wikipedia</option>
-          </select>
-          <button class="setting-btn" id="apply-cloak-preset">Apply Preset</button>
-        </div>
-        <div class="setting-row" style="margin-top:0.5rem">
-          <input type="text" id="cloak-title" class="setting-input" placeholder="Custom tab title" />
-          <input type="text" id="cloak-icon" class="setting-input" placeholder="Custom icon URL" />
-          <button class="setting-btn" id="apply-cloak">Apply</button>
-        </div>
-      </div>
+// Dynamic UV config
+app.get("/uv/uv.config.js", (req, res) => {
+  res.setHeader("Content-Type", "application/javascript");
+  res.send(`self.__uv$config = {
+  prefix: "/uv/service/",
+  encodeUrl: Ultraviolet.codec.xor.encode,
+  decodeUrl: Ultraviolet.codec.xor.decode,
+  handler: "/uv/uv.handler.js",
+  bundle: "/uv/uv.bundle.js",
+  config: "/uv/uv.config.js",
+  sw: "/uv/uv.sw.js",
+};`);
+});
 
-      <div class="setting-group">
-        <div class="setting-label">PANIC KEY</div>
-        <p class="setting-desc">Press a key to instantly redirect away from this page.</p>
-        <div class="setting-row">
-          <select id="panic-key" class="setting-input">
-            <option value="Escape">Escape</option>
-            <option value="F1">F1</option>
-            <option value="F2">F2</option>
-            <option value="F5">F5</option>
-            <option value="F11">F11</option>
-          </select>
-          <input type="text" id="panic-url" class="setting-input" placeholder="Redirect URL" />
-          <button class="setting-btn" id="save-panic">Save</button>
-        </div>
-      </div>
+// Public folder (your frontend)
+app.use(express.static(path.join(__dirname, "public")));
 
-      <div class="setting-group">
-        <div class="setting-label">PROXY STATUS</div>
-        <div id="status-display" style="color:var(--text-dim);font-size:0.88rem;font-family:var(--font-body)">
-          Checking proxy engine...
-        </div>
-      </div>
-    </div>
-  </main>
+// Health check
+app.get("/health", (req, res) => res.json({ ok: true, node: process.version }));
 
-  <!-- PROXY OVERLAY -->
-  <div id="proxy-overlay" class="proxy-overlay hidden">
-    <div class="proxy-bar">
-      <button class="proxy-nav-btn" id="proxy-back" title="Back">←</button>
-      <button class="proxy-nav-btn" id="proxy-forward" title="Forward">→</button>
-      <button class="proxy-nav-btn" id="proxy-reload" title="Reload">↺</button>
-      <div class="proxy-url-box" id="proxy-url-display">about:blank</div>
-      <button class="proxy-newtab-btn" id="proxy-newtab" title="Open in new tab">⧉</button>
-      <button class="proxy-close-btn" id="proxy-close">✕ Close</button>
-    </div>
-    <iframe id="proxy-frame" class="proxy-frame"
-      allow="fullscreen; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-orientation-lock allow-pointer-lock allow-presentation allow-storage-access-by-user-activation">
-    </iframe>
-  </div>
+// SPA fallback
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
-  <!-- UV + Transport scripts -->
-  <script src="/uv/uv.bundle.js"></script>
-  <script src="/uv/uv.config.js"></script>
-  <script src="/js/register-sw.js"></script>
-  <script src="/js/main.js"></script>
-</body>
-</html>
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("[Nebula] Live on port " + PORT);
+});
+
+process.on("uncaughtException", (e) => console.error("[Nebula] Error:", e));
+process.on("unhandledRejection", (e) => console.error("[Nebula] Rejection:", e));
