@@ -66,13 +66,13 @@ app.get("/uv/uv.config.js", (req, res) => {
 };`);
 });
 
-// Public folder (your frontend)
+// Public folder (your frontend) — must come before SPA fallback
 app.use(express.static(path.join(__dirname, "public")));
 
 // Health check
 app.get("/health", (req, res) => res.json({ ok: true, node: process.version }));
 
-// SPA fallback
+// SPA fallback — only reached if no static file matched
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
