@@ -7,11 +7,8 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
-console.log("[Nebula] Starting...");
-console.log("[Nebula] Node:", process.version);
-console.log("[Nebula] Port:", PORT);
+console.log("[Nebula] Starting... Node " + process.version);
 
-// ── CORS HEADERS ──────────────────────────────────────────
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
@@ -19,7 +16,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── WISP (optional) ───────────────────────────────────────
+// Wisp WebSocket
 try {
   const { createServer } = require("wisp-server-node");
   const wisp = createServer({ logLevel: "NONE" });
@@ -27,22 +24,31 @@ try {
     if (req.url.startsWith("/wisp/")) wisp.handleUpgrade(req, socket, head);
     else socket.destroy();
   });
-  console.log("[Nebula] ✓ Wisp loaded");
+  console.log("[Nebula] Wisp OK");
 } catch (e) {
   console.warn("[Nebula] Wisp skipped:", e.message);
 }
 
-// ── SERVE NPM PACKAGE STATIC FILES ────────────────────────
-function servePackage(packageName, route) {
+// Serve UV files - try multiple possible locations
+function servePackage(name, route) {
   try {
-    const pkgJsonPath = require.resolve(packageName + "/package.json");
-    const pkgDir = path.dirname(pkgJsonPath);
-    const distDir = path.join(pkgDir, "dist");
-    const serveDir = fs.existsSync(distDir) ? distDir : pkgDir;
-    app.use(route, express.static(serveDir));
-    console.log("[Nebula] ✓", packageName, "→", route);
+    const pkgJson = require.resolve(name + "/package.json");
+    const base = path.dirname(pkgJson);
+    // Try dist first, then root
+    const dirs = [
+      path.join(base, "dist"),
+      path.join(base, "dist", "browser"),
+      base
+    ];
+    for (const dir of dirs) {
+      if (fs.existsSync(dir)) {
+        app.use(route, express.static(dir));
+        console.log("[Nebula] OK " + name + " -> " + route + " (" + dir + ")");
+        return;
+      }
+    }
   } catch (e) {
-    console.warn("[Nebula] ✗ Could not load", packageName, ":", e.message);
+    console.warn("[Nebula] SKIP " + name + ": " + e.message);
   }
 }
 
@@ -50,7 +56,19 @@ servePackage("@titaniumnetwork-dev/ultraviolet", "/uv");
 servePackage("@mercuryworkshop/epoxy-transport", "/epoxy");
 servePackage("@mercuryworkshop/bare-mux", "/baremux");
 
-// ── UV CONFIG ─────────────────────────────────────────────
+// Log what UV files are actually available
+try {
+  const uvBase = path.dirname(require.resolve("@titaniumnetwork-dev/ultraviolet/package.json"));
+  console.log("[Nebula] UV package dir:", uvBase);
+  console.log("[Nebula] UV files:", fs.readdirSync(uvBase).join(", "));
+  if (fs.existsSync(path.join(uvBase, "dist"))) {
+    console.log("[Nebula] UV dist files:", fs.readdirSync(path.join(uvBase, "dist")).join(", "));
+  }
+} catch (e) {
+  console.warn("[Nebula] Could not inspect UV:", e.message);
+}
+
+// UV config
 app.get("/uv/uv.config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   res.send(`self.__uv$config = {
@@ -64,39 +82,18 @@ app.get("/uv/uv.config.js", (req, res) => {
 };`);
 });
 
-// ── PUBLIC FILES ──────────────────────────────────────────
-const publicDir = path.join(__dirname, "public");
-if (fs.existsSync(publicDir)) {
-  app.use(express.static(publicDir));
-  console.log("[Nebula] ✓ Serving public/");
-} else {
-  console.error("[Nebula] ✗ public/ folder not found!");
-}
+// Public
+app.use(express.static(path.join(__dirname, "public")));
 
-// ── HEALTH CHECK ──────────────────────────────────────────
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", node: process.version, port: PORT });
-});
+app.get("/health", (req, res) => res.json({ ok: true }));
 
-// ── FALLBACK ──────────────────────────────────────────────
 app.get("*", (req, res) => {
-  const indexPath = path.join(__dirname, "public", "index.html");
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).send("index.html not found — check your public/ folder");
-  }
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ── START ─────────────────────────────────────────────────
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`\n🌌 Nebula live → http://0.0.0.0:${PORT}\n`);
+  console.log("[Nebula] Live on port " + PORT);
 });
 
-// Catch unhandled errors so the process doesn't die silently
-process.on("uncaughtException", (err) => {
-  console.error("[Nebula] Uncaught exception:", err);
-});
-process.on("unhandledRejection", (reason) => {
-  console.error("[Nebula] Unhandled rejection:", reason);
-});
+process.on("uncaughtException", (e) => console.error("[Nebula] Error:", e));
+process.on("unhandledRejection", (e) => console.error("[Nebula] Rejection:", e));
