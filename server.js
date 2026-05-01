@@ -9,10 +9,17 @@ const PORT = process.env.PORT || 3000;
 
 console.log("[Nebula] Starting... Node " + process.version);
 
-// Required headers for SharedArrayBuffer + service workers
+// COOP/COEP headers — applied ONLY to UV service worker and config files
+// so that SharedArrayBuffer is available in those contexts without breaking
+// cross-origin resources on the rest of the site.
+const UV_ISOLATED_PATHS = ["/uv/uv.sw.js", "/uv/uv.config.js"];
+
 app.use((req, res, next) => {
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  const url = req.url.split("?")[0]; // strip query string
+  if (UV_ISOLATED_PATHS.includes(url)) {
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  }
   res.setHeader("Access-Control-Allow-Origin", "*");
   next();
 });
@@ -30,31 +37,51 @@ try {
   console.warn("[Nebula] Wisp skipped:", e.message);
 }
 
-// Serve UV files from node_modules
-function tryServe(pkgName, route) {
+// Resolve a package's dist directory, trying a prioritised list of sub-paths.
+// Returns the first directory that exists and is non-empty, or null.
+function resolvePackageDir(pkgName, candidates) {
   try {
     const base = path.dirname(require.resolve(pkgName + "/package.json"));
-    const tryDirs = ["dist", "dist/browser", ""];
-    for (const sub of tryDirs) {
+    console.log("[Nebula] Resolving " + pkgName + " from base: " + base);
+    for (const sub of candidates) {
       const dir = sub ? path.join(base, sub) : base;
+      console.log("[Nebula]   checking: " + dir);
       if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
-        app.use(route, express.static(dir));
-        console.log("[Nebula] Serving " + pkgName + " from " + dir);
-        return;
+        return dir;
       }
     }
+    console.warn("[Nebula] No suitable directory found for " + pkgName);
+    return null;
   } catch (e) {
-    console.warn("[Nebula] Cannot serve " + pkgName + ":", e.message);
+    console.warn("[Nebula] Cannot resolve " + pkgName + ":", e.message);
+    return null;
   }
 }
 
-tryServe("@titaniumnetwork-dev/ultraviolet", "/uv");
-tryServe("@mercuryworkshop/epoxy-transport", "/epoxy");
-tryServe("@mercuryworkshop/bare-mux", "/baremux");
+// Serve UV dist files from node_modules
+function tryServe(pkgName, route, candidates) {
+  const dir = resolvePackageDir(pkgName, candidates);
+  if (dir) {
+    app.use(route, express.static(dir));
+    console.log("[Nebula] Serving " + pkgName + " at " + route + " from " + dir);
+  }
+}
 
-// Dynamic UV config
+// @titaniumnetwork-dev/ultraviolet: prefer dist/, fall back to dist/browser/
+tryServe("@titaniumnetwork-dev/ultraviolet", "/uv", ["dist", "dist/browser", ""]);
+
+// @mercuryworkshop/epoxy-transport: files live in dist/
+tryServe("@mercuryworkshop/epoxy-transport", "/epoxy", ["dist", ""]);
+
+// @mercuryworkshop/bare-mux: files live in dist/
+tryServe("@mercuryworkshop/bare-mux", "/baremux", ["dist", ""]);
+
+// UV config endpoint — must come AFTER the static middleware so it takes
+// precedence over any uv.config.js that might be bundled in the package.
 app.get("/uv/uv.config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
   res.send(`self.__uv$config = {
   prefix: "/uv/service/",
   encodeUrl: Ultraviolet.codec.xor.encode,
