@@ -9,14 +9,15 @@ const PORT = process.env.PORT || 3000;
 
 console.log("[Nebula] Starting... Node " + process.version);
 
+// Required headers for SharedArrayBuffer + service workers
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   next();
 });
 
-// Wisp WebSocket
+// Wisp WebSocket server
 try {
   const { createServer } = require("wisp-server-node");
   const wisp = createServer({ logLevel: "NONE" });
@@ -29,64 +30,49 @@ try {
   console.warn("[Nebula] Wisp skipped:", e.message);
 }
 
-// Serve UV files - try multiple possible locations
-function servePackage(name, route) {
+// Serve UV files from node_modules
+function tryServe(pkgName, route) {
   try {
-    const pkgJson = require.resolve(name + "/package.json");
-    const base = path.dirname(pkgJson);
-    // Try dist first, then root
-    const dirs = [
-      path.join(base, "dist"),
-      path.join(base, "dist", "browser"),
-      base
-    ];
-    for (const dir of dirs) {
-      if (fs.existsSync(dir)) {
+    const base = path.dirname(require.resolve(pkgName + "/package.json"));
+    const tryDirs = ["dist", "dist/browser", ""];
+    for (const sub of tryDirs) {
+      const dir = sub ? path.join(base, sub) : base;
+      if (fs.existsSync(dir) && fs.readdirSync(dir).length > 0) {
         app.use(route, express.static(dir));
-        console.log("[Nebula] OK " + name + " -> " + route + " (" + dir + ")");
+        console.log("[Nebula] Serving " + pkgName + " from " + dir);
         return;
       }
     }
   } catch (e) {
-    console.warn("[Nebula] SKIP " + name + ": " + e.message);
+    console.warn("[Nebula] Cannot serve " + pkgName + ":", e.message);
   }
 }
 
-servePackage("@titaniumnetwork-dev/ultraviolet", "/uv");
-servePackage("@mercuryworkshop/epoxy-transport", "/epoxy");
-servePackage("@mercuryworkshop/bare-mux", "/baremux");
+tryServe("@titaniumnetwork-dev/ultraviolet", "/uv");
+tryServe("@mercuryworkshop/epoxy-transport", "/epoxy");
+tryServe("@mercuryworkshop/bare-mux", "/baremux");
 
-// Log what UV files are actually available
-try {
-  const uvBase = path.dirname(require.resolve("@titaniumnetwork-dev/ultraviolet/package.json"));
-  console.log("[Nebula] UV package dir:", uvBase);
-  console.log("[Nebula] UV files:", fs.readdirSync(uvBase).join(", "));
-  if (fs.existsSync(path.join(uvBase, "dist"))) {
-    console.log("[Nebula] UV dist files:", fs.readdirSync(path.join(uvBase, "dist")).join(", "));
-  }
-} catch (e) {
-  console.warn("[Nebula] Could not inspect UV:", e.message);
-}
-
-// UV config
+// Dynamic UV config
 app.get("/uv/uv.config.js", (req, res) => {
   res.setHeader("Content-Type", "application/javascript");
   res.send(`self.__uv$config = {
-  prefix: '/uv/service/',
+  prefix: "/uv/service/",
   encodeUrl: Ultraviolet.codec.xor.encode,
   decodeUrl: Ultraviolet.codec.xor.decode,
-  handler: '/uv/uv.handler.js',
-  bundle: '/uv/uv.bundle.js',
-  config: '/uv/uv.config.js',
-  sw: '/uv/uv.sw.js',
+  handler: "/uv/uv.handler.js",
+  bundle: "/uv/uv.bundle.js",
+  config: "/uv/uv.config.js",
+  sw: "/uv/uv.sw.js",
 };`);
 });
 
-// Public
+// Public folder (your frontend)
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/health", (req, res) => res.json({ ok: true }));
+// Health check
+app.get("/health", (req, res) => res.json({ ok: true, node: process.version }));
 
+// SPA fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
