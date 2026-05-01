@@ -6,24 +6,29 @@
   }
 
   try {
-    // Register the UV service worker
+    // Register the UV service worker with scope /uv/service/
     const reg = await navigator.serviceWorker.register("/uv/uv.sw.js", {
       scope: "/uv/service/",
       updateViaCache: "none",
     });
 
-    // Wait for SW to be active
-    if (reg.installing) {
-      await new Promise((resolve) => {
-        reg.installing.addEventListener("statechange", (e) => {
-          if (e.target.state === "activated") resolve();
-        });
+    console.log("[Nebula] Service Worker registered");
+
+    // Wait for SW to become active (installing → installed → activated)
+    await new Promise((resolve) => {
+      const sw = reg.installing || reg.waiting || reg.active;
+      if (!sw || sw.state === "activated") {
+        resolve();
+        return;
+      }
+      sw.addEventListener("statechange", (e) => {
+        if (e.target.state === "activated") resolve();
       });
-    }
+    });
 
     console.log("[Nebula] ✓ Service Worker active");
 
-    // Configure bare-mux to use Wisp transport
+    // Configure bare-mux to use epoxy transport over Wisp
     if (typeof BareMux !== "undefined") {
       const conn = new BareMux.BareMuxConnection("/baremux/worker.js");
       const wispUrl =
@@ -31,10 +36,11 @@
         location.host +
         "/wisp/";
       await conn.setTransport("/epoxy/index.mjs", [{ wisp: wispUrl }]);
-      console.log("[Nebula] ✓ Wisp transport configured →", wispUrl);
+      console.log("[Nebula] ✓ Epoxy transport configured →", wispUrl);
+    } else {
+      console.warn("[Nebula] BareMux not available — transport not configured");
     }
-
   } catch (err) {
-    console.warn("[Nebula] SW setup error:", err);
+    console.error("[Nebula] SW setup error:", err);
   }
 })();
